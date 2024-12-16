@@ -39,9 +39,9 @@
         }
     </style>
 </head>
-<body class="night-mode">
+<body class="night-mode"> <!-- Start with night mode -->
     <h1>Pokémon GO Trade Tracker</h1>
-    <button id="toggleNightMode">Toggle Night Mode</button>
+    <button id="toggleNightMode">Toggle Night/Light Mode</button>
     <form id="tradeForm">
         <input type="text" id="redditName" name="redditName" placeholder="Reddit Name" required>
         <input type="text" id="inGameName" name="inGameName" placeholder="In-Game Name" required>
@@ -76,6 +76,15 @@
             columnIndex: null,
             direction: 'asc'
         };
+
+        // Toggle night mode functionality
+        document.getElementById('toggleNightMode').addEventListener('click', function() {
+            document.body.classList.toggle('night-mode');
+
+            // Save theme preference to localStorage
+            let currentTheme = document.body.classList.contains('night-mode') ? 'dark' : 'light';
+            localStorage.setItem('theme', currentTheme);
+        });
 
         // Check localStorage for theme preference or default to night mode
         const savedTheme = localStorage.getItem('theme');
@@ -118,26 +127,27 @@
             trades.forEach(trade => addTradeToTable(trade.redditName, trade.inGameName, trade.myPokemon, trade.hisPokemon, trade.date, trade.addedDate));
         }
 
-        function addTradeToTable(redditName, inGameName, myPokemon, hisPokemon, date, addedDate) {
-            const tableBody = document.querySelector('#tradeTable tbody');
-            const row = tableBody.insertRow(-1);
-            
-            row.insertCell(0).innerText = redditName;
-            row.insertCell(1).innerText = inGameName;
-            row.insertCell(2).innerText = myPokemon;
-            row.insertCell(3).innerText = hisPokemon;
-            row.insertCell(4).innerText = date;
+       function addTradeToTable(redditName, inGameName, myPokemon, hisPokemon, date, addedDate) {
+           const tableBody = document.querySelector('#tradeTable tbody');
+           const row = tableBody.insertRow(-1);
+           
+           row.insertCell(0).innerText = redditName;
+           row.insertCell(1).innerText = inGameName;
+           row.insertCell(2).innerText = myPokemon;
+           row.insertCell(3).innerText = hisPokemon;
+           row.insertCell(4).innerText = date;
 
-            // Calculate days left
-            const daysLeft = calculateDaysLeft(date);
-            row.insertCell(5).innerText = daysLeft;
+           // Calculate days left
+           const daysLeft = calculateDaysLeft(date);
+           row.insertCell(5).innerText = daysLeft;
 
-            // Add Added Date
-            row.insertCell(6).innerText = addedDate;
+           // Add Added Date
+           row.insertCell(6).innerText = addedDate;
 
            // Add edit button
            const editCell = row.insertCell(7);
            const editButton = document.createElement('button');
+           
            editButton.innerText= 'Edit';
            
            editButton.onclick= function() {
@@ -181,51 +191,51 @@
        }
 
        function saveTradeToLocalStorage(redditName, inGameName, myPokemon, hisPokemon, date, addedDate) {
-           const trades = JSON.parse(localStorage.getItem('trades')) || [];
-           trades.push({ redditName, inGameName, myPokemon, hisPokemon, date, addedDate });
-           localStorage.setItem('trades', JSON.stringify(trades));
+          const trades = JSON.parse(localStorage.getItem('trades')) || [];
+          trades.push({ redditName, inGameName, myPokemon, hisPokemon, date, addedDate });
+          localStorage.setItem('trades', JSON.stringify(trades));
        }
 
        function exportTrades() {
-           const trades = localStorage.getItem('trades');
-           const blob = new Blob([trades], { type: 'application/json' });
-           const link = document.createElement('a');
-           link.href = URL.createObjectURL(blob);
-           link.download = 'trades.json';
-           link.click();
+          const trades = localStorage.getItem('trades');
+          if (trades) {
+              const blob = new Blob([trades], { type: 'application/json' });
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(blob);
+              link.download = 'trades.json';
+              link.click();
+          } else {
+              alert("No trades to export.");
+          }
        }
 
        function importTrades(event) {
-    	const file = event.target.files[0];
-    	if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const trades = JSON.parse(e.target.result);
+          const file = event.target.files[0];
+          if (file) {
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                  try {
+                      const trades = JSON.parse(e.target.result);
 
-            // Migrate old format to new format if necessary
-            const updatedTrades = trades.map(trade => {
-                // Check if the trade has the new structure
-                if (!trade.myPokemon || !trade.hisPokemon) {
-                    // Provide default values for new fields if they don't exist
-                    return {
-                        redditName: trade.redditName,
-                        inGameName: trade.inGameName,
-                        myPokemon: trade.myPokemon == undefined ? 'Missing entry, probably from old format': trade.myPokemon, // Default value
-                        hisPokemon: trade.hisPokemon == undefined ? 'Missing entry, probably from old format' : trade.hisPokemon, // Default value
-                        date: trade.date,
-                        addedDate: trade.addedDate
-                    };
-                }
-                return trade; // Return as is if it already has the new structure
-            });
+                      // Migrate old format to new format if necessary
+                      const updatedTrades = trades.map(trade => ({
+                          redditName: trade.redditName || 'Unknown',
+                          inGameName: trade.inGameName || 'Unknown',
+                          myPokemon: trade.myPokemon || 'Unknown', // Default value if missing
+                          hisPokemon: trade.hisPokemon || 'Unknown', // Default value if missing
+                          date: trade.date,
+                          addedDate: trade.addedDate || new Date().toISOString().split('T')[0] // Default to today if missing
+                      }));
 
-            localStorage.setItem('trades', JSON.stringify(updatedTrades));
-            loadTrades(); // Reload trades after importing
-        };
-        reader.readAsText(file);
-    	}
-	}
-
+                      localStorage.setItem('trades', JSON.stringify(updatedTrades));
+                      loadTrades(); // Reload trades after importing
+                  } catch (error) {
+                      alert("Error importing trades. Please ensure the file is valid.");
+                  }
+              };
+              reader.readAsText(file);
+          }
+       }
 
        function sortTable(columnIndex) {
           const tableBody = document.querySelector('#tradeTable tbody');
@@ -291,10 +301,9 @@
           
           dateCell.innerHTML += `<input type='date' value='${dateCell.innerText}' />`;
 
-          // Change the button text to "Save"
-          let editButtonSave= document.createElement("button");
-          editButtonSave.innerText= "Save";
-          
+         let editButtonSave= document.createElement("button");
+         editButtonSave.innerText= "Save";
+         
          editButtonSave.onclick= function(){
              redditNameCell.innerText= redditNameCell.querySelector("input").value;
              inGameNameCell.innerText= inGameNameCell.querySelector("input").value;
@@ -305,9 +314,9 @@
 
              saveUpdatedTrade(row); 
              
-             editButtonSave.remove(); // Remove the save button after saving
+             editButtonSave.remove(); 
 
-             alert('Trade updated successfully!'); // Optional success message
+             alert('Trade updated successfully!'); 
          };
 
          row.cells[7].appendChild(editButtonSave); 
@@ -326,10 +335,9 @@
          
          updatedTrade.addedDate= row.cells[6].innerText;
 
-         // Update trades array by finding and replacing the edited trade
          trades.forEach((trade, index) => {
              if (trade.redditName === updatedTrade.redditName && trade.inGameName === updatedTrade.inGameName) {
-                 trades[index] = updatedTrade; // Replace with updated trade
+                 trades[index] = updatedTrade; 
              }
          });
 
