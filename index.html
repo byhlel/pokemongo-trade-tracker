@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Pokémon GO Trade Tracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; transition: background-color 0.3s; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; cursor: pointer; position: relative; }
+        button { margin-top: 10px; }
+        #tradeForm {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #tradeForm input[type="text"], 
+        #tradeForm input[type="date"] {
+            padding: 5px;
+            font-size: 14px;
+        }
+        .sort-arrow {
+            margin-left: 5px;
+            font-size: 12px;
+        }
+        /* Night mode styles */
+        body.night-mode {
+            background-color: #121212;
+            color: #ffffff;
+        }
+        body.night-mode th {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+        body.night-mode td {
+            background-color: #1e1e1e;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="night-mode"> <!-- Set night mode as default -->
+    <h1>Pokémon GO Trade Tracker</h1>
+    <button id="toggleNightMode">Toggle Night/Light Mode</button>
+    <form id="tradeForm">
+        <input type="text" id="redditName" name="redditName" placeholder="Reddit Name" required>
+        <input type="text" id="inGameName" name="inGameName" placeholder="In-Game Name" required>
+        <input type="date" id="date" name="date" required>
+        <input type="submit" value="Add Trade">
+    </form>
+
+    <button id="exportBtn">Export Trades</button>
+    <button id="importBtn">Import Trade</button>
+    <input type="file" id="importFile" accept=".json" style="display:none;" />
+
+    <table id="tradeTable">
+        <thead>
+            <tr>
+                <th onclick="sortTable(0)">Reddit Name<span class="sort-arrow" id="redditNameArrow"></span></th>
+                <th onclick="sortTable(1)">In-Game Name<span class="sort-arrow" id="inGameNameArrow"></span></th>
+                <th onclick="sortTable(2)">Trade Date<span class="sort-arrow" id="tradeDateArrow"></span></th>
+                <th onclick="sortTable(3)">Days Left<span class="sort-arrow" id="daysLeftArrow"></span></th>
+                <th onclick="sortTable(4)">Added Date<span class="sort-arrow" id="addedDateArrow"></span></th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        let currentSort = {
+            columnIndex: null,
+            direction: 'asc'
+        };
+
+        // Check localStorage for theme preference or default to night mode
+        const savedTheme = localStorage.getItem('theme');
+        
+        if (savedTheme) {
+            document.body.classList.toggle('night-mode', savedTheme === 'dark');
+        } else {
+            document.body.classList.add('night-mode'); // Set night mode by default
+            localStorage.setItem('theme', 'dark'); // Save default theme
+        }
+
+        document.addEventListener('DOMContentLoaded', loadTrades);
+
+        document.getElementById('tradeForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const redditName = document.getElementById('redditName').value;
+            const inGameName = document.getElementById('inGameName').value;
+            const date = document.getElementById('date').value;
+
+            const addedDate = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+
+            addTradeToTable(redditName, inGameName, date, addedDate);
+            saveTradeToLocalStorage(redditName, inGameName, date, addedDate);
+            this.reset(); // Reset form fields
+        });
+
+        document.getElementById('exportBtn').addEventListener('click', exportTrades);
+        
+        // Open file input when "Import Trade" button is clicked
+        document.getElementById('importBtn').addEventListener('click', function() {
+            document.getElementById('importFile').click();
+        });
+        
+        document.getElementById('importFile').addEventListener('change', importTrades);
+
+        function loadTrades() {
+            const trades = JSON.parse(localStorage.getItem('trades')) || [];
+            trades.forEach(trade => addTradeToTable(trade.redditName, trade.inGameName, trade.date, trade.addedDate));
+        }
+
+        function addTradeToTable(redditName, inGameName, date, addedDate) {
+            const tableBody = document.querySelector('#tradeTable tbody');
+            const row = tableBody.insertRow(-1);
+            row.insertCell(0).innerText = redditName;
+            row.insertCell(1).innerText = inGameName;
+            row.insertCell(2).innerText = date;
+
+            // Calculate days left
+            const daysLeft = calculateDaysLeft(date);
+            row.insertCell(3).innerText = daysLeft;
+
+            // Add Added Date
+            row.insertCell(4).innerText = addedDate;
+
+            // Add delete button
+            const deleteCell = row.insertCell(5);
+            const deleteButton = document.createElement('button');
+            deleteButton.innerText = 'Delete';
+            deleteButton.onclick = function() {
+                deleteTrade(row);
+            };
+            deleteCell.appendChild(deleteButton);
+        }
+
+        function calculateDaysLeft(date) {
+            const today = new Date();
+            const tradeDate = new Date(date);
+            const timeDiff = tradeDate - today;
+            return Math.ceil(timeDiff / (1000 * 3600 * 24)); // Convert milliseconds to days
+        }
+
+        function deleteTrade(row) {
+            const redditName = row.cells[0].innerText;
+            const inGameName = row.cells[1].innerText;
+            const date = row.cells[2].innerText;
+
+            // Remove from localStorage
+            let trades = JSON.parse(localStorage.getItem('trades')) || [];
+            trades = trades.filter(trade => !(trade.redditName === redditName && trade.inGameName === inGameName && trade.date === date));
+            localStorage.setItem('trades', JSON.stringify(trades));
+
+            // Remove from table
+            row.remove();
+        }
+
+        function saveTradeToLocalStorage(redditName, inGameName, date, addedDate) {
+            const trades = JSON.parse(localStorage.getItem('trades')) || [];
+            trades.push({ redditName, inGameName, date, addedDate });
+            localStorage.setItem('trades', JSON.stringify(trades));
+        }
+
+        function exportTrades() {
+           const trades = localStorage.getItem('trades');
+           const blob = new Blob([trades], { type: 'application/json' });
+           const link = document.createElement('a');
+           link.href = URL.createObjectURL(blob);
+           link.download = 'trades.json';
+           link.click();
+       }
+
+       function importTrades(event) {
+           const file = event.target.files[0];
+           if (file) {
+               const reader = new FileReader();
+               reader.onload = function(e) {
+                   const trades = JSON.parse(e.target.result);
+                   localStorage.setItem('trades', JSON.stringify(trades));
+                   loadTrades(); // Reload trades after importing
+               };
+               reader.readAsText(file);
+           }
+       }
+
+       function sortTable(columnIndex) {
+          const tableBody = document.querySelector('#tradeTable tbody');
+          const rowsArray = Array.from(tableBody.rows);
+
+          // Determine sort direction based on the current state of the column
+          let ascending = true;
+          if (currentSort.columnIndex === columnIndex) {
+              ascending = currentSort.direction === 'asc' ? false : true;
+          }
+          currentSort.columnIndex = columnIndex;
+          currentSort.direction = ascending ? 'asc' : 'desc';
+
+          rowsArray.sort((a, b) => {
+              let aValue, bValue;
+
+              if (columnIndex === 2 || columnIndex === 4) { // Trade Date or Added Date
+                  aValue = new Date(a.cells[columnIndex].innerText).getTime();
+                  bValue = new Date(b.cells[columnIndex].innerText).getTime();
+              } else if (columnIndex === 3) { // Days Left
+                  aValue = parseInt(a.cells[columnIndex].innerText);
+                  bValue = parseInt(b.cells[columnIndex].innerText);
+              } else { // Reddit Name or In-Game Name
+                  aValue = a.cells[columnIndex].innerText.toLowerCase();
+                  bValue = b.cells[columnIndex].innerText.toLowerCase();
+              }
+
+              return ascending ? (aValue > bValue ? 1 : -1) : (aValue < bValue ? 1 : -1);
+          });
+
+          // Clear the existing rows and append sorted rows
+          tableBody.innerHTML = '';
+          rowsArray.forEach(row => tableBody.appendChild(row));
+
+          updateSortArrows(columnIndex); // Update arrows after sorting
+      }
+
+      function updateSortArrows(columnIndex) {
+          // Clear all arrows first
+          document.querySelectorAll('.sort-arrow').forEach(arrow => arrow.innerHTML = '');
+
+          // Set the appropriate arrow for the currently sorted column
+          if (currentSort.direction === 'asc') {
+              document.querySelector(`#tradeTable th:nth-child(${columnIndex + 1}) .sort-arrow`).innerHTML = '&#9650;'; // Up arrow
+          } else {
+              document.querySelector(`#tradeTable th:nth-child(${columnIndex + 1}) .sort-arrow`).innerHTML = '&#9660;'; // Down arrow
+          }
+      }
+
+      // Toggle night mode functionality
+      document.getElementById('toggleNightMode').addEventListener('click', function() {
+          document.body.classList.toggle('night-mode');
+          
+          // Save theme preference to localStorage
+          let currentTheme = document.body.classList.contains('night-mode') ? 'dark' : 'light';
+          localStorage.setItem('theme', currentTheme);
+      });
+    </script>
+</body>
+</html>
